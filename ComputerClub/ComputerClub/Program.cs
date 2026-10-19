@@ -165,7 +165,7 @@ class ComputerClub
         while (!exit)
         {
             DisplayInfo(false);
-            Console.WriteLine("пк клуба:");
+            Console.WriteLine("\nпк клуба:");
             Console.Write($"{GetString(Type.ComputersAll)}\n1.Добавить пк:\nКол-во пк: ");
             string input = Console.ReadLine();
             if (input != "выход")
@@ -521,12 +521,12 @@ class SQLTableComputers : IDBComputers
             connection.Open();
 
             string computerStatus = connection.QueryFirstOrDefault<string>("select computer_status from Computers where computer_name = @name", new { name = Name });
-            if (computerStatus != null && computerStatus != Computer.Status.Busy.ToString())
+            if (computerStatus != null && computerStatus != Computer.Busy)
             {
                 int rows = connection.Execute("delete from Computers where computer_name = @name", new { name = Name });
                 return rows > 0 ? Answer.Successfully : Answer.Error;
             }
-            else return computerStatus == null ? Answer.NoneComputer : computerStatus == Computer.Status.Busy.ToString() ? Answer.ComputerBusy : Answer.Error;
+            else return computerStatus == null ? Answer.NoneComputer : computerStatus == Computer.Busy ? Answer.ComputerBusy : Answer.Error;
         }
     }
 
@@ -580,7 +580,7 @@ class SQLTableClients : IDBClients
                 int rows = connection.Execute("insert into Clients(client_name) values(@name)", new { name = Name });
                 return rows > 0 ? Answer.Successfully : Answer.Error;
             }
-            else return client_status == Client.Status.AtComputer.ToString() ? Answer.ClientAtComputer : client_status == Client.Status.NotAtComputer.ToString() ? Answer.ClientNotAtComputer : Answer.Error;
+            else return client_status == Client.AtComputer ? Answer.ClientAtComputer : client_status == Client.NotAtComputer ? Answer.ClientNotAtComputer : Answer.Error;
         }
     }
 
@@ -634,7 +634,7 @@ class SQLTableSessions : IDBSessions
                 string query = "insert into Sessions(computer_id, client_id) Values(@computer_id, @client_id);" +
                                $"update Computers set computer_status = @computer_status where computer_id = @computer_id;" +
                                $"update Clients set client_status = @client_status where client_id = @client_id;";
-                connection.Execute(query, new { computer_id = ComputerId, client_id = ClientId, computer_status = Computer.Status.Busy, client_status = Client.Status.AtComputer }, transaction);
+                connection.Execute(query, new { computer_id = ComputerId, client_id = ClientId, computer_status = Computer.Busy, client_status = Client.AtComputer }, transaction);
 
                 transaction.Commit();
                 return Answer.Successfully;
@@ -665,7 +665,7 @@ class SQLTableSessions : IDBSessions
                     new Computer((int)reader["computer_id"], (string)reader["computer_name"], Computer.StatusEnum((string)reader["computer_status"])),
                     new Client((int)reader["client_id"], (string)reader["client_name"], Client.StatusEnum((string)reader["client_status"])),
                     (DateTimeOffset)reader["session_started_at"],
-                    (DateTimeOffset?)reader["session_ended_at"]));
+                    reader["session_ended_at"] is DBNull ? null : (DateTimeOffset)reader["session_ended_at"]));
             }
             return sessions;
         }
@@ -683,10 +683,10 @@ class SQLTableSessions : IDBSessions
                 SqlTransaction transaction = connection.BeginTransaction();
                 try
                 {
-                    string query = $"update Sessions set session_ended_at = getdate() where session_id = @session_id;" +
+                    string query = $"update Sessions set session_ended_at = SYSDATETIMEOFFSET()() where session_id = @session_id;" +
                                    $"update Computers set computer_status = @computer_status where computer_id = @computer_id;" +
                                    $"update Clients set client_status = @client_status where client_id = @client_id;";
-                    connection.Execute(query, new { session_id = SessionId, computer_id = sessionDTO.computer_id, client_id = sessionDTO.client_id, computer_status = Computer.Status.Free, client_status = Client.Status.NotAtComputer }, transaction);
+                    connection.Execute(query, new { session_id = SessionId, computer_id = sessionDTO.computer_id, client_id = sessionDTO.client_id, computer_status = Computer.Free, client_status = Client.NotAtComputer }, transaction);
 
                     transaction.Commit();
                     return Answer.Successfully;
